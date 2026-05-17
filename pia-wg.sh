@@ -553,11 +553,11 @@ then
 	echo "Requesting forwarded port..."
 	if which pia-portforward.sh &>/dev/null
 	then
-		pia-portforward.sh
+		pia-portforward.sh || exit $?
 	else
 		if [ -e "${0%/*}/pia-portforward.sh" ]
 		then
-			"${0%/*}/pia-portforward.sh"
+			"${0%/*}/pia-portforward.sh" || exit $?
 		else
 			PIA_PORTFORWARD="$(dirname "$(realpath "$(which "$0")")")/pia-portforward.sh"
 			if [ -e "$PIA_PORTFORWARD" ]

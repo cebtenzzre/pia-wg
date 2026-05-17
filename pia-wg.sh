@@ -446,6 +446,7 @@ then
 
 		# remove old route
 		ip rule del to "$OLD_PEER_IP" lookup "$HARDWARE_ROUTE_TABLE" 2>/dev/null
+		ip rule del from "$OLD_PEER_IP" table "$VPNONLY_ROUTE_TABLE" 2>/dev/null
 	fi
 
 	# Note: only if Table = off in wireguard config file above
@@ -453,6 +454,7 @@ then
 
 	# Specific to my setup
 	ip route add default table "$VPNONLY_ROUTE_TABLE" dev "$PIA_INTERFACE" 2>/dev/null
+	ip rule add from "$PEER_IP" table "$VPNONLY_ROUTE_TABLE" pref 100 2>/dev/null
 else
 	echo "Bringing up interface '$PIA_INTERFACE'"
 
@@ -470,6 +472,7 @@ else
 
 	# Specific to my setup
 	ip route add default table "$VPNONLY_ROUTE_TABLE" dev "$PIA_INTERFACE" 2>/dev/null
+	ip rule add from "$PEER_IP" table "$VPNONLY_ROUTE_TABLE" pref 100 2>/dev/null
 
 fi
 

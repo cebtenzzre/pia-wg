@@ -435,7 +435,7 @@ then
 			wg set "$PIA_INTERFACE" peer "$OLD_KEY" remove
 		fi
 
-		if [ "$PEER_IP" != "$OLD_PEER_IP/32" ]
+		if [[ -n $OLD_PEER_IP && $PEER_IP != "$OLD_PEER_IP" ]]
 		then
 			echo "    [Change $PIA_INTERFACE ipaddr from $OLD_PEER_IP to $PEER_IP]"
 			# update link ip address in case

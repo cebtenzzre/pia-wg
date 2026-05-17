@@ -1,4 +1,23 @@
-# Private Internet Access wireguard shell scripts
+# pia-wg — PIA WireGuard without the official client
+
+Fork of [triffid/pia-wg](https://github.com/triffid/pia-wg) with bug fixes and routing improvements.
+
+## Why this fork?
+
+PIA's official desktop client injects iptables-nft rules for cgroup-based split tunneling and a kill switch. These conflict with other WireGuard-based tools — in particular **Tailscale**, where PIA's OUTPUT chain blocks outbound traffic to Tailscale peers after the first packet, and firewalld's `ct state invalid` drop rejects Tailscale's userspace WireGuard replies.
+
+This script sets up a raw WireGuard tunnel to PIA without touching nftables or iptables at all, so it coexists cleanly with Tailscale, firewalld, or any other network stack.
+
+Alternatives considered:
+- **[pia-foss/manual-connections](https://github.com/pia-foss/manual-connections)** — PIA's official scripts; effectively abandoned (last release Jan 2021, 50+ open issues), uses `wg-quick` with no source-based policy routing for port forwarding.
+- **[jdelkins/pia-tools](https://github.com/jdelkins/pia-tools)** (Go) — fails with "bad signature" errors during port forwarding.
+
+## Changes from upstream
+
+- **Port forwarding works** — upstream silently fails because response packets exit via the physical interface instead of the tunnel.
+- **Server hops no longer unnecessarily re-assign the interface address** — upstream always re-ran the address change logic, even when the IP hadn't changed.
+- **Non-root invocation re-execs as root** instead of running a separate, incomplete sudo code path.
+- **Systemd units included** for running the tunnel and port-forward keepalive as services.
 
 ## Prelude
 
@@ -8,7 +27,7 @@
 
 ## Usage
 
-These scripts have been tested on Gentoo Linux, but _should_ work with other Linux distributions.
+These scripts have been tested on Arch Linux and Gentoo Linux, but _should_ work with other Linux distributions.
 
 They have not been tested on OSX but might work - pull requests are welcomed as long as they don't adversely affect the functionality on Linux, or excessively complicate the scripts.
 
@@ -57,11 +76,41 @@ If you want to maintain your forwarded port, it should be called every ~5 minute
 
 These are utility scripts - `pia-check.sh` will ping the remote endpoint over the VPN link to ensure it's still working, and `pia-currentserver` will print the cached connection information for the current or most recent connection.
 
-### openrc-init-pia
+### net.pia (OpenRC)
 
-This is an example openrc init script to start a PIA vpn connection during boot.
+This is an example OpenRC init script to start a PIA VPN connection during boot.
 
 It assigns the "reload" action to hop servers, demonstrating the ability to reuse a cached connection on boot but optionally hop servers at any time.
+
+### systemd
+
+Unit files are provided in `systemd/`. To install:
+
+```bash
+# Install the scripts
+sudo mkdir -p /opt/local/pia-wg
+sudo cp pia-wg.sh pia-portforward.sh pia-config.sh pia-check.sh pia-currentserver.sh pia-speedtest.sh /opt/local/pia-wg/
+
+# Create config and cache directories
+sudo mkdir -p /etc/pia-wg /var/cache/pia-wg
+
+# Install the systemd units
+sudo cp systemd/pia-wg.service systemd/pia-portforward.service systemd/pia-portforward.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Run first-time setup interactively (prompts for PIA username and password)
+sudo /opt/local/pia-wg/pia-wg.sh
+
+# Edit the generated config to set your preferred region, enable port forwarding, etc.
+sudo nano /etc/pia-wg/pia-wg.conf
+# LOC="ca_ontario"
+# PORTFORWARD=1
+
+# Enable and start
+sudo systemctl enable --now pia-wg.service
+```
+
+The `pia-wg.service` unit automatically starts `pia-portforward.timer`, which refreshes the port forward every 5 minutes. Use `systemctl reload pia-wg` to hop to a new server.
 
 ### pia-config.sh
 

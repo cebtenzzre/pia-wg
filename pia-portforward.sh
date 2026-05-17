@@ -32,7 +32,7 @@ fi
 
 if [ -z "$WG_INFO" ]
 then
-	echo "Couldn't determine server information even with fuzzy search, is your $DATAFILE_NEW ok?" >/dev/stderr
+	echo "Couldn't determine server information even with fuzzy search, is your $DATAFILE_NEW ok?" >&2
 	exit 1
 fi
 
@@ -99,12 +99,12 @@ then
 	exit 1
 fi
 
-( echo -n "PIA Server->Bind: "; jq -r .message <<< "$PF_BIND"; ) > /dev/stderr
+( echo -n "PIA Server->Bind: "; jq -r .message <<< "$PF_BIND"; ) >&2
 
-echo > /dev/stderr
-echo -n "Bound port: " > /dev/stderr
+echo >&2
+echo -n "Bound port: " >&2
 echo "$PF_PORT"
-echo > /dev/stderr
+echo >&2
 
 ###############################################################################
 #                                                                             #

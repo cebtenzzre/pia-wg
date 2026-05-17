@@ -332,7 +332,7 @@ then
 	echo "Registering public key with ${BOLD}$WG_NAME $WG_HOST${NORMAL}"
 	[ "$EUID" -eq 0 ] && [ -z "$OPT_CONFIGONLY" ] && ip rule add to "$WG_HOST" lookup $HARDWARE_ROUTE_TABLE pref 10 2>/dev/null
 
-	if ! curl -v -v -v -D /dev/stderr -GsS \
+	if ! curl -v -v -v -GsS \
 		--max-time 5 \
 		--data-urlencode "pubkey=$CLIENT_PUBLIC_KEY" \
 		--data-urlencode "pt=$TOK" \

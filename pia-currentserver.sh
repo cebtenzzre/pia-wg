@@ -22,7 +22,7 @@ then
 	SERVER_IP_S="$(cut -d. -f1-3 <<< $SERVER_IP)"
 	jq '.regions | .[] | select(.servers.wg[0].ip | test("^'"$SERVER_IP_S"'"))' "$DATAFILE_NEW"
 
-	echo "Note: Inexact match for $SERVER_IP_S.* ($SERVER_IP not found)" >/dev/stderr
+	echo "Note: Inexact match for $SERVER_IP_S.* ($SERVER_IP not found)" >&2
 else
 	jq '.regions | .[] | select(.servers.wg[0].ip == "'"$SERVER_IP"'")' "$DATAFILE_NEW"
 fi

@@ -19,6 +19,8 @@ Alternatives considered:
 - **Non-root invocation re-execs as root** instead of running a separate, incomplete sudo code path.
 - **Systemd units included** for running the tunnel and port-forward keepalive as services.
 
+---
+
 ## Prelude
 
 * [Private Internet Access (PIA)](https://privateinternetaccess.com) is a VPN provider that claims a strict interest in privacy and [does not log user traffic](https://www.privateinternetaccess.com/helpdesk/kb/articles/do-you-log-3).

@@ -1,0 +1,8 @@
+[Unit]
+Description=PIA port forward keepalive
+BindsTo=pia-wg.service
+After=pia-wg.service
+
+[Timer]
+OnActiveSec=0
+OnUnitActiveSec=5min

@@ -1,0 +1,10 @@
+[Unit]
+Description=PIA port forward refresh
+After=pia-wg.service
+Requires=pia-wg.service
+
+[Service]
+Type=oneshot
+Environment=CONFIGDIR=/var/cache/pia-wg
+Environment=CONFIG=/etc/pia-wg/pia-wg.conf
+ExecStart=/opt/local/pia-wg/pia-portforward.sh

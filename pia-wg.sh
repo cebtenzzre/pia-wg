@@ -411,97 +411,66 @@ ENDWG
 fi
 
 # echo "Bringing up wireguard interface $PIA_INTERFACE... "
-if [ "$EUID" -eq 0 ]
+if [[ $EUID -ne 0 ]]; then
+	exec sudo "$0" "$@"
+fi
+
+# scratch current config if any
+# put new settings into existing interface instead of teardown/re-up to prevent leaks
+if ip link list "$PIA_INTERFACE" > /dev/null
 then
-	# scratch current config if any
-	# put new settings into existing interface instead of teardown/re-up to prevent leaks
-	if ip link list "$PIA_INTERFACE" > /dev/null
+	echo "Updating existing interface '$PIA_INTERFACE'"
+
+	OLD_PEER_IP="$(ip -j addr show dev pia | jq -r '.[].addr_info[].local')"
+	OLD_KEY="$(echo $(wg showconf "$PIA_INTERFACE" | grep ^PublicKey | cut -d= -f2-))"
+	OLD_ENDPOINT="$(wg show "$PIA_INTERFACE" endpoints | grep "$OLD_KEY" | cut "-d${TAB}" -f2 | cut -d: -f1)"
+
+	# Note: unnecessary if Table != off above, but doesn't hurt.
+	# ensure we don't get a packet storm loop
+	ip rule add fwmark 51820 lookup "$HARDWARE_ROUTE_TABLE" pref 10 2>/dev/null
+
+	if [ "$OLD_KEY" != "$SERVER_PUBLIC_KEY" ]
 	then
-		echo "Updating existing interface '$PIA_INTERFACE'"
-
-		OLD_PEER_IP="$(ip -j addr show dev pia | jq -r '.[].addr_info[].local')"
-		OLD_KEY="$(echo $(wg showconf "$PIA_INTERFACE" | grep ^PublicKey | cut -d= -f2-))"
-		OLD_ENDPOINT="$(wg show "$PIA_INTERFACE" endpoints | grep "$OLD_KEY" | cut "-d${TAB}" -f2 | cut -d: -f1)"
-
-		# Note: unnecessary if Table != off above, but doesn't hurt.
-		# ensure we don't get a packet storm loop
-		ip rule add fwmark 51820 lookup "$HARDWARE_ROUTE_TABLE" pref 10 2>/dev/null
-
-		if [ "$OLD_KEY" != "$SERVER_PUBLIC_KEY" ]
-		then
-			echo "    [Change Peer from $OLD_KEY to $SERVER_PUBLIC_KEY]"
-			wg set "$PIA_INTERFACE" fwmark 51820 private-key <(echo "$CLIENT_PRIVATE_KEY") peer "$SERVER_PUBLIC_KEY" endpoint "$SERVER_IP:$SERVER_PORT" allowed-ips "0.0.0.0/0,::/0" || exit 1
-			# remove old key
-			wg set "$PIA_INTERFACE" peer "$OLD_KEY" remove
-		fi
-
-		if [[ -n $OLD_PEER_IP && $PEER_IP != "$OLD_PEER_IP" ]]
-		then
-			echo "    [Change $PIA_INTERFACE ipaddr from $OLD_PEER_IP to $PEER_IP]"
-			# update link ip address in case
-			ip addr replace "$PEER_IP" dev "$PIA_INTERFACE"
-			ip addr del "$OLD_PEER_IP/32" dev "$PIA_INTERFACE"
-
-			# remove old route
-			ip rule del to "$OLD_PEER_IP" lookup "$HARDWARE_ROUTE_TABLE" 2>/dev/null
-		fi
-
-		# Note: only if Table = off in wireguard config file above
-		ip route add default dev "$PIA_INTERFACE" 2>/dev/null
-
-		# Specific to my setup
-		ip route add default table "$VPNONLY_ROUTE_TABLE" dev "$PIA_INTERFACE" 2>/dev/null
-	else
-		echo "Bringing up interface '$PIA_INTERFACE'"
-
-		# Note: unnecessary if Table != off above, but doesn't hurt.
-		ip rule add fwmark 51820 lookup "$HARDWARE_ROUTE_TABLE" pref 10 2>/dev/null
-
-		# bring up wireguard interface
-		ip link add "$PIA_INTERFACE" type wireguard || exit 1
-		ip link set dev "$PIA_INTERFACE" up || exit 1
+		echo "    [Change Peer from $OLD_KEY to $SERVER_PUBLIC_KEY]"
 		wg set "$PIA_INTERFACE" fwmark 51820 private-key <(echo "$CLIENT_PRIVATE_KEY") peer "$SERVER_PUBLIC_KEY" endpoint "$SERVER_IP:$SERVER_PORT" allowed-ips "0.0.0.0/0,::/0" || exit 1
-		ip addr replace "$PEER_IP" dev "$PIA_INTERFACE" || exit 1
-
-		# Note: only if Table = off in wireguard config file above
-		ip route add default dev "$PIA_INTERFACE" 2>/dev/null
-
-		# Specific to my setup
-		ip route add default table "$VPNONLY_ROUTE_TABLE" dev "$PIA_INTERFACE" 2>/dev/null
-
+		# remove old key
+		wg set "$PIA_INTERFACE" peer "$OLD_KEY" remove
 	fi
+
+	if [[ -n $OLD_PEER_IP && $PEER_IP != "$OLD_PEER_IP" ]]
+	then
+		echo "    [Change $PIA_INTERFACE ipaddr from $OLD_PEER_IP to $PEER_IP]"
+		# update link ip address in case
+		ip addr replace "$PEER_IP" dev "$PIA_INTERFACE"
+		ip addr del "$OLD_PEER_IP/32" dev "$PIA_INTERFACE"
+
+		# remove old route
+		ip rule del to "$OLD_PEER_IP" lookup "$HARDWARE_ROUTE_TABLE" 2>/dev/null
+	fi
+
+	# Note: only if Table = off in wireguard config file above
+	ip route add default dev "$PIA_INTERFACE" 2>/dev/null
+
+	# Specific to my setup
+	ip route add default table "$VPNONLY_ROUTE_TABLE" dev "$PIA_INTERFACE" 2>/dev/null
 else
-	echo
-	echo "Not running as root/sudo - did you want to specify -c (config only) ?"
-	echo "Setup commands will now be fed through sudo"
-	echo
-	echo ip rule add fwmark 51820 lookup $HARDWARE_ROUTE_TABLE pref 10
-	sudo ip rule add fwmark 51820 lookup $HARDWARE_ROUTE_TABLE pref 10 || exit 1
+	echo "Bringing up interface '$PIA_INTERFACE'"
 
-	if ! ip link list "$PIA_INTERFACE" > /dev/null
-	then
-		echo ip link add "$PIA_INTERFACE" type wireguard
-		sudo ip link add "$PIA_INTERFACE" type wireguard || exit 1
-	fi
+	# Note: unnecessary if Table != off above, but doesn't hurt.
+	ip rule add fwmark 51820 lookup "$HARDWARE_ROUTE_TABLE" pref 10 2>/dev/null
 
-	echo wg set "$PIA_INTERFACE" fwmark 51820 private-key "$CLIENT_PRIVATE_KEY"         peer "$SERVER_PUBLIC_KEY" endpoint "$SERVER_IP:$SERVER_PORT" allowed-ips "0.0.0.0/0,::/0"
-	sudo wg set "$PIA_INTERFACE" fwmark 51820 private-key <(echo "$CLIENT_PRIVATE_KEY") peer "$SERVER_PUBLIC_KEY" endpoint "$SERVER_IP:$SERVER_PORT" allowed-ips "0.0.0.0/0,::/0" || exit 1
+	# bring up wireguard interface
+	ip link add "$PIA_INTERFACE" type wireguard || exit 1
+	ip link set dev "$PIA_INTERFACE" up || exit 1
+	wg set "$PIA_INTERFACE" fwmark 51820 private-key <(echo "$CLIENT_PRIVATE_KEY") peer "$SERVER_PUBLIC_KEY" endpoint "$SERVER_IP:$SERVER_PORT" allowed-ips "0.0.0.0/0,::/0" || exit 1
+	ip addr replace "$PEER_IP" dev "$PIA_INTERFACE" || exit 1
 
-	echo ip addr replace "$PEER_IP" dev "$PIA_INTERFACE"
-	sudo ip addr replace "$PEER_IP" dev "$PIA_INTERFACE" || exit 1
+	# Note: only if Table = off in wireguard config file above
+	ip route add default dev "$PIA_INTERFACE" 2>/dev/null
 
-	if ip link list "$PIA_INTERFACE" > /dev/null
-	then
-		OLD_PEER_IP="$(ip -j addr show dev pia | jq '.[].addr_info[].local')"
-		OLD_KEY="$(echo $(wg showconf "$PIA_INTERFACE" | grep ^PublicKey | cut -d= -f2))"
-		OLD_ENDPOINT="$(wg show "$PIA_INTERFACE" endpoints | grep "$OLD_KEY" | cut "-d${TAB}" -f2 | cut -d: -f1)"
+	# Specific to my setup
+	ip route add default table "$VPNONLY_ROUTE_TABLE" dev "$PIA_INTERFACE" 2>/dev/null
 
-		echo wg set "$PIA_INTERFACE" peer "$OLD_KEY" remove
-		sudo wg set "$PIA_INTERFACE" peer "$OLD_KEY" remove || exit 1
-	fi
-
-	echo ip route add default dev "$PIA_INTERFACE"
-	sudo ip route add default dev "$PIA_INTERFACE" || exit 1
 fi
 
 echo "PIA Wireguard '$PIA_INTERFACE' configured successfully"
